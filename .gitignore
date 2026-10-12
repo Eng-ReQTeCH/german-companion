@@ -1,0 +1,12 @@
+data/
+test-results/
+node_modules/
+.runtime-tts/
+.venv-tts/
+models/
+__pycache__/
+.agents/
+skills-lock.json
+.env
+.env.*
+!.env.example

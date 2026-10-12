@@ -1,0 +1,9 @@
+.git
+.agents
+data
+test-results
+node_modules
+tests
+.runtime-tts
+.venv-tts
+models
