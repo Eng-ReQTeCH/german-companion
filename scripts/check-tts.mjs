@@ -4,6 +4,10 @@ import {createRequire} from 'node:module';
 const base='http://127.0.0.1:3000';
 const state=await (await fetch(base+'/api/state')).json();
 const word=state.words.find(w=>w.german==='Hallo')||state.words[0];
+for(const key of ['alphabet','sound-3','number-758','introduction']){
+ const response=await fetch(base+'/api/course-audio/'+key);assert.equal(response.status,200,await response.clone().text());
+ const wav=Buffer.from(await response.arrayBuffer());assert.equal(wav.toString('ascii',8,12),'WAVE');assert.ok(wav.length>1000);console.log(`Week 1 ${key}: ${wav.length} bytes`);
+}
 for(const speed of ['normal','slow']){
  const response=await fetch(base+'/api/audio/'+word.id+'?speed='+speed);assert.equal(response.status,200,await response.clone().text());
  const audio=Buffer.from(await response.arrayBuffer());assert.equal(audio.toString('ascii',0,4),'RIFF');assert.equal(audio.toString('ascii',8,12),'WAVE');assert.ok(audio.length>1000);

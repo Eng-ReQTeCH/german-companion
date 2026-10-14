@@ -50,11 +50,19 @@ Voice sources: [Piper Python API](https://github.com/OHF-Voice/piper1-gpl/blob/m
 
 1. Share the week's course notes in our chat. We can add explanations, examples and exercises to the app as the course progresses.
 2. In Course notebook, add or edit a week, including its date and your class notes.
-3. Add vocabulary and link it to that week. Paste multiple rows from a spreadsheet, or use `German | English | Arabic` with one word per line. Bulk import skips existing German words; edit those individually if you want to change their meanings.
+3. Click **Add a word**, type the German and press Enter. Week 1 vocabulary fills in English and Arabic automatically, including articles for known nouns. Unknown words are captured immediately without invented meanings. Add meanings directly in the collection; Enter or leaving the field saves them. Language and reading direction are persistent controls on the word-list page and are also used as the initial practice/export preferences. Words missing a meaning in the selected language are excluded from review/export until you fill it in. Optional details remain available separately. Bulk paste from spreadsheets or `German | English | Arabic` is also supported.
 4. Practice due words or all words, in either direction, optionally filtered by lesson. Again schedules a review in 10 minutes; Got it and Easy advance through 1, 3, 7, 14, 30 and 60 day intervals. These are simple study intervals, not Anki's scheduling algorithm.
 5. In Anki studio, select direction, meaning language and lesson. Download `.apkg` and open it in Anki. Both directions produces two cards per word. The text option uses UTF-8 with Anki file headers; import it using the Basic note type and Front/Back fields. Missing translations in the selected language are skipped.
 
 Anki packages use a legacy-compatible SQLite collection and ZIP archive. Notes have stable identifiers per word, language and direction so re-exporting the same collection can update existing notes. Examples are included on the answer side, Arabic uses automatic direction, and card HTML is escaped. Export format references: [Anki text import documentation](https://docs.ankiweb.net/importing/text-files.html) and [genanki package schema](https://github.com/kerrickstaley/genanki/blob/main/genanki/apkg_schema.py).
+
+## Week 1 and irregular verbs
+
+Week 1 includes the alphabet with letter names/IPA, umlauts, common sound groups, 1–20 and compound numbers, a 0–9999 number builder, colors, an introduction builder, regular present-tense endings and irregular examples. Topics open individually; study progress persists on the server. Twelve knowledge checks give explanations and allow retries. Listening examples use the same Piper voice as vocabulary playback.
+
+The **Irregular verbs** page stores six present-tense forms: ich, du, er/sie/es, wir, ihr, sie/Sie. You can save/edit/delete custom verbs, start from the sein/haben/sprechen references, open a conjugation from any word row, and practice all six forms. Meanings entered for a saved custom verb are reused when you add it to vocabulary. The references are examples, not a claim about which irregular verbs your teacher covered. Strong verbs may be irregular in other tenses despite regular present-tense forms; the notebook records the present tense only.
+
+Existing notebooks migrate automatically. An untouched starter lesson becomes Week 1; customized notes are preserved and receive a separate Week 1 lesson. A pre-migration JSON copy is saved in `data/before-week-1.json`. Verbs and topic progress are included in backups; older backups without them can still be restored.
 
 ## Verification
 

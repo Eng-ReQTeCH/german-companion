@@ -1,32 +1,40 @@
-# Frontend overhaul review
+# Week 1 judge review
 
-The first frontend was rejected by the user. Its earlier visual score did not reflect the user's taste and is superseded by this review.
+Scope: the first-week German syllabus, fast vocabulary capture and the irregular-verb notebook. Scores are an explicit self-review from software, testing and German-teaching perspectives, not an independent evaluation or proof of learning outcomes.
 
-## Audit and direction
+| Criterion | First review | Final / 100 |
+|---|---:|---:|
+| Usefulness in teaching German | 94 | 96 |
+| Ease of use | 93 | 97 |
+| How well it works together | 94 | 96 |
 
-Retired: fixed sidebar, muted green, rounded panels, alphabet illustration, motivational dashboard headings and the previous overview layout.
+## Findings and iteration
 
-Replacement: a contemporary language-workbook direction with a top masthead and navigation, oversized German typography, vermilion accents, graphite rules, sharp surfaces, live vocabulary on the overview, and chapter-style course entries. All existing routes and study operations are retained. Typography uses local Arial/Helvetica and Consolas; there are no external font requests.
+The first review found an overly long all-open lesson, passive verb tables without recall practice, overly broad sticky-footer styling and unclear handling of untranslated vocabulary.
 
-## Verification
+The final implementation opens just the alphabet initially and provides topic-jump controls, collapsible explanations and a separate knowledge-check section. Saved verbs have a six-form recall drill. Sticky actions apply only to editing dialogs. Unknown words are saved without inventing meanings; the collection explains which meanings are needed for practice/export. Known Week 1 nouns can be captured without their article and are stored with the article.
 
-- All five automated functionality tests pass.
-- Chrome interaction checks pass for word creation/edit/delete, Arabic search, review rating, bulk import and APKG download. The original notebook is restored after these checks.
-- All six main screens and vocabulary dialogs checked at 1440px, 768px and 390px. No page overflow or JavaScript errors.
-- Actual screenshots reviewed for desktop and phone overview, vocabulary, Anki, practice and editing.
-- Text/action contrast checked. Week-spine text adjusted to exceed normal text contrast requirements.
-- Modal actions remain visible while long forms scroll. Keyboard focus and reduced-motion handling retained.
+## Teaching review
 
-## Judge assessment
+- Covers A–Z, Ä/Ö/Ü/ß, letter names versus word sounds, IPA with approximate English hints, and German audio.
+- Covers ei/ie, au, eu/äu, sch, ch variants, initial sp/st, tsch, z/tz, w, common v pronunciation and ß/ss.
+- Covers 1–20, 100, 1000, inverted units/tens, ein versus eins, special teens/tens, and 758. A tested builder supports 0–9999.
+- Includes eleven colors and the sentence pattern Meine Lieblingsfarbe ist … without introducing unnecessary adjective endings.
+- Covers name, origin, residence and favorite color, including matching questions, statement/question word order, and a caution about countries with articles.
+- Covers regular endings, six pronoun slots, sie versus Sie, ending adjustments and irregular sein/haben; sprechen is explicitly an extra example.
+- Twelve knowledge checks offer corrective explanations. Saved verb forms have active recall practice.
+- The irregular examples are not claimed to be the teacher's actual verb list. This notebook records present-tense forms; a strong verb can have regular present forms and still be irregular in other tenses.
 
-| Category | Self-review / 10 | Basis |
-|---|---:|---|
-| Functionality | 9 | Existing features preserved and verified in automated/browser checks. |
-| UI look | 9 | Fully replaced visual composition across screens; subjective and awaiting user feedback. |
-| Feature richness | 9 | Weekly notebooks, multilingual vocabulary, bulk entry, filtering, speech, review and exports retained. |
-| Usability | 9 | Top navigation, responsive vocabulary layout, direct study actions and scrollable forms with visible actions. |
-| Usefulness | 9 | Course content, word capture, review and Anki portability remain the core workflow. |
+References checked: [DW alphabet/pronunciation](https://www.dw.com/downloads/26294183/lektion1-lerner-aussprache.pdf), [Goethe sound comparisons](https://www.goethe.de/resources/files/pdf221/bungen-gleiche-laute_ab-a12.pdf), [Goethe pronunciation exercises](https://www.goethe.de/resources/files/pdf288/deutsche-aussprache-uben-mit-musik_arbeitsblaetter-zu-den-tutorials.pdf). Conjugation reference: [Lingolia German teaching material](https://deutsch.lingolia.com/files/download/daf/lingolia_daf_v5.pdf).
 
-These are internal implementation checks, not proof of user satisfaction. User feedback takes precedence over the visual score.
+## Test evidence
 
-Docker runtime and a live import in Anki desktop remain unverified on this computer. Package archive, SQLite integrity and contents are tested.
+- Twelve automated tests pass: CRUD/persistence/reviews, text/APKG exports, bulk capture, server audio, number spellings, idempotent migration, dictionary/pronoun distinctions, six-form validation, quick capture, verb persistence, progress and old-backup restore.
+- Chrome checks pass in an isolated notebook: one-field Enter capture; automatic and manually added meanings; persistent language/direction preferences; six-form and custom verbs; conjugation drill; number/introduction builders; progress; wrong/correct quiz feedback; lesson-to-vocabulary saving; APKG download; review; phone/tablet layouts.
+- Screenshots reviewed for lesson, vocabulary, verb notebook and quick capture. No page overflow at 390px and 768px.
+- Real Piper WAV audio generated for the alphabet, äu/eu examples, 758 and a full introduction; browser vocabulary playback passed.
+- Existing custom notes, vocabulary and reviews are preserved; a pre-migration snapshot is created. Verbs and progress survive new backups, and old backups remain compatible.
+
+## Limits
+
+Docker execution and live Anki desktop import remain unverified on this machine. Piper audio generation and browser playback are verified; no claim of human pronunciation evaluation is made. The automatic vocabulary lookup is the bundled course glossary, not an unrestricted translation service. The final scores describe this Week 1 experience, not a complete German curriculum.
