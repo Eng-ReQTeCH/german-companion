@@ -7,5 +7,10 @@ export function migrateStudy(state){
   if(starter){Object.assign(starter,{...weekOne,id:'starter'});}else if(!state.lessons.some(l=>l.courseId==='week-1'))state.lessons.push(structuredClone(weekOne));
   state.migrations.push('week-1-v1');
  }
+ if(!state.migrations.includes('week-1-board-v1')){
+  const placeholders=new Set(['Your Week 1 study guide is below. Use these notes for examples or corrections from your teacher.','Use these notes for examples or corrections from your teacher. The structured Week 1 guide is above.']);
+  for(const lesson of state.lessons)if(lesson.courseId==='week-1'){if(placeholders.has(lesson.notes))lesson.notes='';lesson.summary=weekOne.summary;lesson.contentRevision=weekOne.contentRevision;}
+  state.migrations.push('week-1-board-v1');
+ }
  return state;
 }

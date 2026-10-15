@@ -1,5 +1,9 @@
 # Week 1 judge review
 
+## Board-reference update
+
+Week 1 has now been reconciled with all 12 supplied board photographs. The original teacher-verb uncertainty below is superseded: sprechen, lesen, sein, haben and sehen are confirmed. The app also adds the board's greetings/farewells, formal/informal question sets, age, name parts, Yemen/Sudan origin patterns, hell/dunkel and worked number examples. Placeholder notes and note-entry prompts are removed. Fourteen automated tests cover the updated content and safe migration; browser checks cover the lesson and existing workflow.
+
 Scope: the first-week German syllabus, fast vocabulary capture and the irregular-verb notebook. Scores are an explicit self-review from software, testing and German-teaching perspectives, not an independent evaluation or proof of learning outcomes.
 
 | Criterion | First review | Final / 100 |
