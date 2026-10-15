@@ -1,0 +1,32 @@
+import {createRequire} from 'node:module';
+import {spawn} from 'node:child_process';
+import {mkdtemp,mkdir,readFile,rm} from 'node:fs/promises';
+import {tmpdir} from 'node:os';
+import path from 'node:path';
+import assert from 'node:assert/strict';
+const require=createRequire('C:/Users/Monty/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/package.json');const {chromium}=require('playwright');
+const directory=await mkdtemp(path.join(tmpdir(),'wort-export-browser-'));const child=spawn(process.execPath,['server.mjs'],{env:{...process.env,PORT:'31383',DATA_DIR:directory},stdio:['ignore','pipe','pipe']});
+await new Promise((resolve,reject)=>{child.stdout.on('data',d=>{if(d.toString().includes('ready'))resolve();});child.on('error',reject);child.on('exit',c=>reject(Error('Server exit '+c)));});
+let browser;
+const base='http://127.0.0.1:31383';const post=async(p,data)=>await fetch(base+'/api/'+p,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
+try{
+ await post('words',{german:'EnglishOnly',english:'English meaning'});await post('words',{german:'ArabicOnly',arabic:'معنى'});await post('capture',{german:'Untranslated'});
+ browser=await chromium.launch({headless:true,...(process.env.BROWSER_EXECUTABLE?{executablePath:process.env.BROWSER_EXECUTABLE}:{})});const page=await browser.newPage({viewport:{width:1440,height:1000},reducedMotion:'reduce'});const errors=[];page.on('pageerror',e=>errors.push(e.message));
+ const go=async view=>{await page.goto(base+'/#'+view);await page.waitForFunction(()=>document.querySelector('#status').textContent==='Saved on your server');};
+ const blur=async()=>await page.evaluate(()=>document.activeElement?.blur());
+ await go('export');assert.equal(await page.getByLabel('Card order').inputValue(),'true');assert.equal(await page.getByLabel('File format').inputValue(),'apkg');assert.match(await page.locator('#export-count').textContent(),/12 cards/);assert.equal(await page.locator('.export-advanced').first().getAttribute('open'),null);
+ await page.keyboard.press('Space');assert.equal(await page.locator('#export-answer').isVisible(),true);await page.keyboard.press('ArrowRight');assert.match(await page.locator('#export-position').textContent(),/2 \/ 12/);assert.equal(await page.locator('#export-answer').isVisible(),false);
+ await page.getByLabel('Card direction').selectOption('both');await page.getByLabel('Meaning language',{exact:true}).selectOption('arabic');assert.match(await page.locator('#export-count').textContent(),/22 cards/);assert.match(await page.locator('#export-skipped summary').textContent(),/2 words/);
+ await page.locator('.export-advanced summary').first().click();await page.getByLabel('Deck name',{exact:true}).fill('Wort::Week 1');
+ await page.route('**/api/export?*',route=>route.fulfill({status:503,contentType:'application/json',body:JSON.stringify({error:'Temporary export error'})}));await page.keyboard.press('Control+Enter');await page.getByText('Temporary export error',{exact:true}).waitFor();assert.equal(await page.locator('#export-download').isEnabled(),true);await page.unroute('**/api/export?*');
+ await blur();const downloadEvent=page.waitForEvent('download');await page.keyboard.press('d');const download=await downloadEvent;await mkdir('test-results/export',{recursive:true});await download.saveAs('test-results/export/shuffled.apkg');assert.equal((await readFile('test-results/export/shuffled.apkg')).readUInt32LE(0),0x04034b50);
+ await page.reload();assert.equal(await page.getByLabel('Card direction').inputValue(),'both');assert.equal(await page.getByLabel('Meaning language',{exact:true}).inputValue(),'arabic');assert.equal(await page.getByLabel('Deck name',{exact:true}).inputValue(),'Wort::Week 1');
+ await page.locator('.export-advanced').first().evaluate(d=>d.open=false);await blur();await page.screenshot({path:'test-results/export/desktop.png',fullPage:true});
+ await go('words');await page.keyboard.press('/');assert.equal(await page.getByRole('searchbox').evaluate(e=>e===document.activeElement),true);await page.getByRole('searchbox').fill('Untranslated');assert.equal(await page.locator('#editor').getAttribute('open'),null);await blur();await page.keyboard.press('e');await page.getByRole('heading',{name:'Take it to Anki.'}).waitFor();assert.match(await page.locator('#export-count').textContent(),/0 cards/);assert.equal(await page.locator('#export-download').isDisabled(),true);assert.equal(await page.locator('.shortcut-bar').textContent().then(t=>t.includes('D Download')),false);
+ await page.getByLabel('Include words from').selectOption('');await page.getByLabel('Meaning language',{exact:true}).selectOption('both');await blur();await page.keyboard.press('Shift+Slash');await page.locator('#shortcut-help').waitFor({state:'visible'});await page.keyboard.press('Escape');await page.locator('#shortcut-help').waitFor({state:'hidden'});
+ await page.keyboard.press('n');await page.getByLabel('German word',{exact:true}).fill('KeyboardCapture');await page.keyboard.press('Control+Enter');await page.waitForFunction(()=>!document.querySelector('#editor').open);await blur();assert.ok((await(await fetch(base+'/api/state')).json()).words.some(w=>w.german==='KeyboardCapture'));
+ await go('practice');await page.keyboard.press('s');await page.getByRole('button',{name:'Reveal answer'}).waitFor();await page.keyboard.press('Space');await page.getByRole('button',{name:'Got it',exact:true}).waitFor();await page.keyboard.press('2');await page.getByText('Card 2 of').waitFor();
+ await go('verbs');await page.keyboard.press('v');await page.locator('#editor').waitFor({state:'visible'});await page.keyboard.press('Escape');await page.locator('#editor').waitFor({state:'hidden'});
+ for(const width of [768,390]){await page.setViewportSize({width,height:900});await go('export');await page.keyboard.press('Space');assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);await page.screenshot({path:`test-results/export/${width}.png`,fullPage:true});}
+ assert.deepEqual(errors,[]);console.log('Export/shortcut browser checks passed: default shuffle, preview, counts/skips, errors/retry, download hotkeys, saved options, filtered/empty export, safe typing, quick capture, review ratings, verb capture, help and responsive hints.');
+}finally{await browser?.close();child.kill();await new Promise(r=>child.once('exit',r));await rm(directory,{recursive:true,force:true});}

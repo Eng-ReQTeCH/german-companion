@@ -52,9 +52,27 @@ Voice sources: [Piper Python API](https://github.com/OHF-Voice/piper1-gpl/blob/m
 2. Open the week in Course notebook and study its explanations, listening activities and exercises. You do not need to transcribe notes or replace placeholder content.
 3. Click **Add a word**, type the German and press Enter. Week 1 vocabulary fills in English and Arabic automatically, including articles for known nouns. Unknown words are captured immediately without invented meanings. Add meanings directly in the collection; Enter or leaving the field saves them. Language and reading direction are persistent controls on the word-list page and are also used as the initial practice/export preferences. Words missing a meaning in the selected language are excluded from review/export until you fill it in. Optional details remain available separately. Bulk paste from spreadsheets or `German | English | Arabic` is also supported.
 4. Practice due words or all words, in either direction, optionally filtered by lesson. Again schedules a review in 10 minutes; Got it and Easy advance through 1, 3, 7, 14, 30 and 60 day intervals. These are simple study intervals, not Anki's scheduling algorithm.
-5. In Anki studio, select direction, meaning language and lesson. Download `.apkg` and open it in Anki. Both directions produces two cards per word. The text option uses UTF-8 with Anki file headers; import it using the Basic note type and Front/Back fields. Missing translations in the selected language are skipped.
+5. In Anki studio, select direction, meaning language and lesson, then download the ready-to-import `.apkg`. New-card positions are shuffled by default. Both directions produces two cards per word. The preview lets you flip and browse sample cards; included/skipped counts use the same filtering logic as the download. Advanced options contain deck name, collection-order export, optional examples/notes and text format. Your choices are remembered on the device. The word-list page can export its current search/type/lesson filters directly. Missing translations are listed before download; an empty selection cannot be downloaded.
 
 Anki packages use a legacy-compatible SQLite collection and ZIP archive. Notes have stable identifiers per word, language and direction so re-exporting the same collection can update existing notes. Examples are included on the answer side, Arabic uses automatic direction, and card HTML is escaped. Export format references: [Anki text import documentation](https://docs.ankiweb.net/importing/text-files.html) and [genanki package schema](https://github.com/kerrickstaley/genanki/blob/main/genanki/apkg_schema.py).
+
+The default shuffle randomizes card rows and new-card queue positions in the package; text export also randomizes rows. Disabling it preserves collection order. Shuffling does not change note GUIDs. Anki controls scheduling/display after import, and re-importing does not reset existing progress. For fresh random new-card display each day, use Anki's [Display Order options](https://docs.ankiweb.net/deck-options.html#display-order). Text format is under Advanced: import with Basic and map Front/Back.
+
+## Keyboard shortcuts
+
+The strip below navigation shows shortcuts for the current screen and updates when focus enters a text field. `?` opens a help dialog. Letter shortcuts do not fire while typing, using an IME, holding a browser modifier, or inside an editing dialog.
+
+| Context | Keys |
+|---|---|
+| General | N: quick word capture; E: Anki export; P: practice; ?: help |
+| Word collection | /: search; E: export current filters; Enter in a meaning field: save |
+| Anki export | Space: flip preview; Left/Right: browse; D or Ctrl/Command+Enter: download |
+| Review | S: start; Space: reveal; 1/2/3: Again/Got it/Easy after reveal; R: German audio |
+| Irregular verbs | V: add; Enter: check a drill answer, then Enter again for the next pronoun |
+| Course lesson | 1–7: jump to the seven topics; Q: knowledge check |
+| Editing dialog | Ctrl/Command+Enter: save; Escape: close; Enter adds a quick-capture word |
+
+Unavailable actions (such as download/preview on an empty export) have no active shortcut. Inputs and focused buttons retain native arrow/space behavior. Keyboard shortcuts apply to Wort, not the imported Anki deck.
 
 ## Week 1 and irregular verbs
 
