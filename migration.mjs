@@ -1,6 +1,6 @@
 import {weekOne} from './public/course.js';
 export function migrateStudy(state){
- state.verbs??=[];state.courseProgress??={};state.migrations??=[];
+ state.verbs??=[];state.courseProgress??={};state.migrations??=[];state.practiceActivity??={};state.verbDrillActivity??={};state.practiceSessions??={};state.episuiteOutbox??=[];
  for(const word of state.words){word.gender??=({der:'m',die:'f',das:'n'}[(word.german||'').match(/^(der|die|das)\s/i)?.[1]?.toLowerCase()]||'');word.plural??='';word.image??='';}
  for(const lesson of state.lessons)if(lesson.courseId==='week-1'&&lesson.notes==='Your Week 1 study guide is below. Use these notes for examples or corrections from your teacher.')lesson.notes=weekOne.notes;
  if(!state.migrations.includes('week-1-v1')){

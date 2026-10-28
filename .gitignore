@@ -7,6 +7,8 @@ models/
 __pycache__/
 .agents/
 skills-lock.json
+externalcode/
+externalapps/episuite/
 .env
 .env.*
 !.env.example
