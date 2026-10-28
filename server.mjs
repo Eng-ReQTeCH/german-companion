@@ -46,8 +46,7 @@ async function fetchWiktionaryLookup(english){
   if(!nounCandidates[i].gender&&parsed.gender)nounCandidates[i].gender=parsed.gender;
   if(parsed.plural)nounCandidates[i].plural=parsed.plural;
   nounCandidates[i].type=nounCandidates[i].gender?'noun':'other';
- }}
- }
+  }}
  return {suggestions:picked};
 }
 function wiktionaryLookup(english){
