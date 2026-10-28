@@ -11,7 +11,7 @@ export function normalizeExportOptions(input={}){
 }
 export function planExport(words,input={}){
  const options=normalizeExportOptions(input),search=String(options.search||'').trim().toLocaleLowerCase();
- const scope=words.filter(w=>(!options.lesson||w.lessonId===options.lesson)&&(!options.type||w.type===options.type)&&(!search||[w.german,w.english,w.arabic,w.tags,w.example].join(' ').toLocaleLowerCase().includes(search)));
+ const scope=words.filter(w=>(!options.type||w.type===options.type)&&(!options.tag||String(w.tags||'').split(/[\s,]+/).includes(options.tag))&&(!search||[w.german,w.english,w.arabic,w.tags,w.example,w.plural].join(' ').toLocaleLowerCase().includes(search)));
  const translated=w=>options.language==='english'?String(w.english||'').trim():options.language==='arabic'?String(w.arabic||'').trim():(String(w.english||'').trim()||String(w.arabic||'').trim());
  const included=scope.filter(w=>String(w.german||'').trim()&&translated(w));
  const includedSet=new Set(included),skipped=scope.filter(w=>!includedSet.has(w));

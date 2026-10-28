@@ -14,13 +14,47 @@ let queue=Promise.resolve();
 if(!state.migrations?.includes('week-1-v1'))await writeFile(path.join(dir,'before-week-1.json'),JSON.stringify(state,null,2));
 state=migrateStudy(state);await writeFile(file+'.tmp',JSON.stringify(state,null,2));await rename(file+'.tmp',file);
 const audioFor=germanAudio({directory:path.join(dir,'audio')});
+const dictionaryCacheFile=path.join(dir,'wiktionary-cache.json');let dictionaryCache={};
+try{dictionaryCache=JSON.parse(await readFile(dictionaryCacheFile,'utf8'));}catch(e){if(e.code!=='ENOENT')throw e;}
+let dictionaryCacheWrite=Promise.resolve(),dictionaryCacheClearing=null;const dictionaryLookupsInFlight=new Map();
+async function fetchWiktionaryLookup(english){
+ const fetchPage=async titles=>{const url=new URL('https://en.wiktionary.org/w/api.php');url.search=new URLSearchParams({action:'query',prop:'revisions',rvprop:'content',rvslots:'main',titles:titles.join('|'),format:'json',formatversion:'2'});const response=await fetch(url,{headers:{'User-Agent':'WortStudyCompanion/1.0 (personal language study app)'},signal:AbortSignal.timeout(12000)});if(!response.ok)throw Error('Wiktionary is unavailable right now.');const data=await response.json();return (data.query?.pages||[]).map(p=>p.revisions?.[0]?.slots?.main?.content||'');};
+ const clean=s=>s.replace(/\[\[([^\]|]+\|)?([^\]]+)\]\]/g,'$2').replace(/<[^>]+>/g,'').replace(/''+/g,'').replace(/\s+/g,' ').trim();
+ const source=(await fetchPage([english]))[0];if(!source)return {suggestions:[]};
+ const candidates=new Map();const templates=source.matchAll(/\{\{t\+?\|de\|([^|{}]+)(?:\|([^{}]+?))?\}\}/gi);
+ for(const match of templates){let german=clean(match[1]);if(!german||german.includes(':')||german.length>100)continue;const tail=match[2]||'';const gender=(tail.match(/(?:^|\|)(m|f|n)(?:\||$)/i)||[])[1]?.toLowerCase()||'';const old=candidates.get(german);if(!old||(!old.gender&&gender))candidates.set(german,{german,gender,plural:'',english:clean(english),type:gender?'noun':'other',source:'Wiktionary'});}
+ const picked=[...candidates.values()].slice(0,12);if(!picked.length)return {suggestions:[]};
+ const pages=await fetchPage(picked.map(x=>x.german));for(let i=0;i<picked.length;i++){const wikitext=pages[i]||'';const head=wikitext.split(/\n==\s*(?:German|Deutsch)\s*==/i)[1]?.split(/\n===[^=]/)[0]||wikitext;const forms=new Set();for(const m of head.matchAll(/\{\{de-noun\|([^{}]*)\}\}/gi)){const args=m[1].split('|');let plural=args.find(x=>/^plural\s*=/.test(x))?.split('=').slice(1).join('=')||args.find((x,n)=>n>0&&!/^(?:m|f|n|m-p|f-p|n-p|\d+|head|g|pl)\s*=/i.test(x)&&!/^\d+$/.test(x));if(plural){plural=clean(plural.replace(/^\d+\s*=/,''));if(plural&&!['-','—','?'].includes(plural))for(const form of plural.split(/[,/]\s*/))if(form.length<100)forms.add(form);}}
+  const genderMatch=head.match(/\{\{(?:m|f|n)\}\}/i)||head.match(/\|(?:g|gender)\s*=\s*(m|f|n)/i);if(!picked[i].gender&&genderMatch)picked[i].gender=(genderMatch[1]||genderMatch[0].replace(/[{}]/g,'')).toLowerCase();picked[i].plural=[...forms].join('|');picked[i].type=picked[i].gender?'noun':'other';
+ }
+ return {suggestions:picked};
+}
+function wiktionaryLookup(english){
+ if(dictionaryCacheClearing)return dictionaryCacheClearing.then(()=>wiktionaryLookup(english));
+ const key=english.trim().toLocaleLowerCase(),cached=dictionaryCache[key];
+ if(cached)return Promise.resolve(cached.result);
+ if(dictionaryLookupsInFlight.has(key))return dictionaryLookupsInFlight.get(key);
+ const request=fetchWiktionaryLookup(english).then(async result=>{
+  dictionaryCache[key]={fetchedAt:Date.now(),result};
+  dictionaryCacheWrite=dictionaryCacheWrite.then(async()=>{await writeFile(dictionaryCacheFile+'.tmp',JSON.stringify(dictionaryCache));await rename(dictionaryCacheFile+'.tmp',dictionaryCacheFile);}).catch(()=>{});await dictionaryCacheWrite;
+  return result;
+ }).catch(error=>{if(cached?.result)return cached.result;throw error;}).finally(()=>dictionaryLookupsInFlight.delete(key));
+ dictionaryLookupsInFlight.set(key,request);return request;
+}
+async function clearWiktionaryCache(){
+ if(dictionaryCacheClearing)return dictionaryCacheClearing;
+ dictionaryCacheClearing=(async()=>{await Promise.allSettled([...dictionaryLookupsInFlight.values()]);await dictionaryCacheWrite;dictionaryCache={};dictionaryCacheWrite=dictionaryCacheWrite.then(async()=>{await writeFile(dictionaryCacheFile+'.tmp','{}');await rename(dictionaryCacheFile+'.tmp',dictionaryCacheFile);});await dictionaryCacheWrite;})();
+ try{await dictionaryCacheClearing;}finally{dictionaryCacheClearing=null;}
+}
 const persist=async next=>{await writeFile(file+'.tmp',JSON.stringify(next,null,2));await rename(file+'.tmp',file);state=next;};
 const send=(res,status,data,type='application/json')=>{res.writeHead(status,{'Content-Type':type+'; charset=utf-8','X-Content-Type-Options':'nosniff','Cache-Control':'no-store'});res.end(type==='application/json'?JSON.stringify(data):data);};
-async function body(req){let text='';for await(const chunk of req){text+=chunk;if(Buffer.byteLength(text)>2000000)throw Error('File exceeds 2 MB.');}return JSON.parse(text||'{}');}
+async function body(req){let text='';for await(const chunk of req){text+=chunk;if(Buffer.byteLength(text)>30000000)throw Error('File exceeds 30 MB.');}return JSON.parse(text||'{}');}
 const server=http.createServer(async(req,res)=>{try{
  const u=new URL(req.url,'http://localhost');const p=u.pathname;
  if(req.method==='GET'&&p==='/api/health')return send(res,200,{ok:true});
  if(req.method==='GET'&&p==='/api/state')return send(res,200,state);
+ if(req.method==='GET'&&p==='/api/lookup'){const english=(u.searchParams.get('english')||'').trim();if(!english||english.length>100)throw Error('Enter an English word or short phrase.');return send(res,200,await wiktionaryLookup(english));}
+ if(req.method==='POST'&&p==='/api/lookup-cache/clear'){if(req.headers.origin&&req.headers.origin!==`http://${req.headers.host}`&&req.headers.origin!==`https://${req.headers.host}`)return send(res,403,{error:'Cross-origin request blocked.'});await clearWiktionaryCache();return send(res,200,{ok:true});}
  if(req.method==='GET'&&p.startsWith('/api/course-audio/')){const key=decodeURIComponent(p.slice('/api/course-audio/'.length));let text=lessonSpeech[key];if(/^number-\d+$/.test(key)){const n=Number(key.slice(7));if(n<=9999)text=numberGerman(n);}if(!text)return send(res,404,{error:'Audio example not found.'});try{const audio=await audioFor(text);res.writeHead(200,{'Content-Type':'audio/wav','Content-Length':audio.length,'Cache-Control':'no-store'});return res.end(audio);}catch(e){return send(res,503,{error:e.message});}}
  if(req.method==='GET'&&p.startsWith('/api/audio/')){const w=state.words.find(w=>w.id===p.slice('/api/audio/'.length));if(!w)return send(res,404,{error:'Word not found.'});try{const audio=await audioFor(w.german,u.searchParams.get('speed')||'normal');res.writeHead(200,{'Content-Type':'audio/wav','Content-Length':audio.length,'Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});return res.end(audio);}catch(e){return send(res,503,{error:e.message});}}
  if(req.method==='GET'&&p==='/api/export'){const opts=Object.fromEntries(u.searchParams),format=opts.format||'apkg',plan=planExport(state.words,opts);if(!['apkg','text'].includes(format))throw Error('Invalid export format.');if(!plan.cards.length)throw Error('No words have a meaning in the selected language.');const name='wort-german-'+plan.options.language+'-'+plan.options.direction;if(format==='apkg'){const buffer=await exportPackage(state.words,opts);res.setHeader('Content-Disposition','attachment; filename="'+name+'.apkg"');return send(res,200,buffer,'application/octet-stream');}const output=exportAnki(state.words,opts);res.setHeader('Content-Disposition','attachment; filename="'+name+'.txt"');return send(res,200,output,'text/plain');}
