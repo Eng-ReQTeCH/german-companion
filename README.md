@@ -34,3 +34,13 @@ The duplicate source copy under `externalcode/` or `externalapps/episuite/` is g
 German pronunciation uses the bundled Piper de_DE-thorsten-high voice service. Docker Compose builds the voice service. For local development without Docker, see `tts/requirements.txt` and `tts/server.py`.
 
 The app has no accounts or authentication. Keep it on a trusted LAN or VPN, or put authentication and HTTPS in front of it before exposing it publicly. Dictionary lookup and the optional Episuite connection are the only features that contact external services.
+
+## German paste import and minigames
+
+Vocabulary is the start page. Paste German words using one per line, commas, or semicolons. The queue looks up each word in German Wiktionary and automatically saves unambiguous matches, skipping existing entries. Review multiple dictionary entries, failed lookups, and missing meanings in the importer. Retry or save those manually without restarting the queue. Dictionary coverage varies; feminine forms are recorded only when the source lists one. Not all nouns have a feminine counterpart or a plural.
+
+The importer stores article/gender, explicit plurals, feminine counterparts, English meanings and verb classification. Irregular verbs with complete present-tense forms also appear in Irregular verbs. Unknown classification is shown explicitly. Source links are preserved in notes. German Wiktionary results are persisted in `data/german-dictionary-cache.json` until Settings → Clear cached lookups; requests for the same entry share one lookup. Clearing the dictionary cache clears both dictionary sources.
+
+Overview and Anki studio have been removed from navigation. The activity calendar and streak now live in Practice. JSON backups and existing vocabulary remain available.
+
+Minigames starts with Number pairs: match digits with German words across 0–20, 0–100, or 0–1000. Pairs shuffle each round, wrong answers allow retries, and foreground play time contributes to study activity and the existing Episuite activity queue. The reference image can guide a future visual revision.

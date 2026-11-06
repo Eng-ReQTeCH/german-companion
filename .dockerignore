@@ -7,3 +7,5 @@ tests
 .runtime-tts
 .venv-tts
 models
+externalcode
+externalapps
