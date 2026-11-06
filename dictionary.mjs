@@ -1,32 +1,69 @@
 import {readFile,writeFile,rename} from 'node:fs/promises';
 import path from 'node:path';
 import {irregularExamples} from './public/course.js';
-const clean=s=>String(s||'').replace(/<!--[^]*?-->/g,'').replace(/\[\[(?:[^|\]]*\|)?([^\]]+)\]\]/g,'$1').replace(/\{\{[^{}]*\}\}/g,'').replace(/<[^>]*>/g,'').replace(/''+/g,'').replace(/\[[0-9, –-]+\]/g,'').trim();
-export function parseGermanEntry(source,word){
- const german=source.split(/\n==[^\n]*\(Deutsch\)[^\n]*==/)[1]?.split(/\n==[^=]/)[0]||source;
- const meanings=[...german.matchAll(/\{\{Ü(?:t|\?)?\|en\|([^|{}]+)[^{}]*\}\}/g)].map(m=>clean(m[1]));
- const english=[...new Set(meanings)].slice(0,8).join(' / ');
- const entries=[];
- for(const match of german.matchAll(/\{\{Deutsch (Substantiv|Verb) Übersicht\s*\n([^]*?)\n\}\}/g)){
-  const values=Object.fromEntries([...match[2].matchAll(/\|\s*([^=\n]+?)\s*=\s*([^\n|]*)/g)].map(m=>[m[1].trim(),clean(m[2])]));
-  const all=prefix=>[...new Set(Object.entries(values).filter(([k,v])=>(k===prefix||k.startsWith(prefix+' '))&&v&&!/^[-—?]+$/.test(v)).map(([,v])=>v))].join('|');
-  const noun=match[1]==='Substantiv',gender=values.Genus||'';
-  const known=irregularExamples.find(v=>v.infinitive===word);
-  const singular=['ich','du','er, sie, es'].map(p=>values['Präsens_'+p]||'');
-  const stem=word.replace(/(?:en|n)$/,'');const regular=/\{\{(?:schwaches Verb|regelmäßig)\|/.test(german);
-  const imperative=values['Imperativ Plural']||'';const particle=imperative.includes(' ')?imperative.split(' ').at(-1):'';const pluralVerb=particle&&word.startsWith(particle)?word.slice(particle.length)+' '+particle:word;const forms=(known?.forms||[...singular,pluralVerb,imperative,pluralVerb]).map(form=>/^[-—]+$/.test(form)?'':form);
-  const feminine=clean(german.split('{{Weibliche Wortformen}}')[1]?.split(/\n\{\{/)[0]||'').replace(/^[:\s]+/,'');
-  entries.push({german:word,english,type:noun?'noun':'verb',gender:noun&&['m','f','n'].includes(gender)?gender:'',plural:noun?all('Nominativ Plural'):'',feminine:noun?feminine:'',irregular:noun?'':known?'yes':/\{\{unreg\.\s*[|}]/.test(german)?'yes':regular||/te$/.test(values['Präteritum_ich']||'')?'no':'unknown',forms:noun?[]:forms,notes:'Source: https://de.wiktionary.org/wiki/'+encodeURIComponent(word)});
- }
- if(!entries.length&&english){const type=/\{\{Wortart\|Adjektiv\|Deutsch/.test(german)?'adjective':'other';entries.push({german:word,english,type,gender:'',plural:'',feminine:'',notes:'Source: https://de.wiktionary.org/wiki/'+encodeURIComponent(word)});}
- return entries;
+const unique=a=>[...new Set(a.filter(Boolean))];
+const clean=s=>String(s||'').replace(/<!--[^]*?-->/g,'').replace(/\[\[(?:[^|\]]*\|)?([^\]]+)\]\]/g,'$1').replace(/\{\{(?:l|m)\|(?:de|en)\|([^|{}]+)[^{}]*\}\}/g,'$1').replace(/\{\{[^{}]*\}\}/g,'').replace(/<ref\b[^]*?<\/ref>/g,'').replace(/<[^>]*>/g,'').replace(/''+/g,'').replace(/\[[0-9, –-]+\]/g,'').trim();
+const lower=s=>s.toLocaleLowerCase('de'),capital=s=>s.charAt(0).toLocaleUpperCase('de')+s.slice(1);
+const fold=s=>lower(s).normalize('NFD').replace(/\p{M}/gu,'').replace(/ß/g,'ss');
+export function editDistance(a,b){a=fold(a);b=fold(b);let row=Array.from({length:b.length+1},(_,i)=>i);for(let i=1;i<=a.length;i++){const next=[i];for(let j=1;j<=b.length;j++)next[j]=Math.min(next[j-1]+1,row[j]+1,row[j-1]+(a[i-1]!==b[j-1]));row=next;}return row[b.length];}
+export function normalizeGermanInput(input){
+ const original=String(input||'').normalize('NFC').trim();let word=original.replace(/^[•*–—-]\s*/,'').replace(/^V\.?\s+/i,'').trim();
+ const article=word.match(/^(der|die|das|det)\s+/i)?.[1]?.toLowerCase()||'';if(article)word=word.replace(/^\S+\s+/,'');
+ const optional=/\(in\)\s*$/i.test(word),alias=optional?'':word.match(/\(([^()]+)\)\s*$/)?.[1]?.trim()||'';word=word.replace(/\s*\([^()]+\)\s*$/,'').trim();if(/^V\.?\s+/i.test(original))word=lower(word);
+ if(!word||word.length>100)throw Error('Enter a German word up to 100 characters.');return {original,word,optional,alias,article,review:article==='det',reason:article==='det'?'The article “Det” is not standard German. Confirm the dictionary match.':''};
 }
-export function germanDictionary(directory){
- const file=path.join(directory,'german-dictionary-cache.json');let cache={},writes=Promise.resolve();const pending=new Map();
+function languageSection(source,language){const headings=[...source.matchAll(/^==(?!=)([^\n]+?)(?<![=])==\s*$/gm)];if(!headings.length)return source;const h=headings.find(h=>language==='de'?/\(Deutsch\)|\{\{Sprache\|Deutsch\}\}/.test(h[1]):h[1].trim()==='German');if(!h)return '';return source.slice(h.index+h[0].length,headings.find(x=>x.index>h.index)?.index??source.length);}
+const wordType=s=>({Substantiv:'noun',Verb:'verb',Adjektiv:'adjective',Adverb:'adverb',Pronomen:'pronoun',Indefinitpronomen:'pronoun',Personalpronomen:'pronoun',Demonstrativpronomen:'pronoun',Antwortpartikel:'expression',Partikel:'expression',Numerale:'number',Interjektion:'expression',Präposition:'preposition',Konjunktion:'conjunction'})[s.match(/\{\{Wortart\|([^|}]+)\|Deutsch/)?.[1]]||'other';
+function counterpart(source,label){return unique([...((source.split('{{'+label+'}}')[1]||'').split(/\n\{\{|\n====/)[0]).matchAll(/\[\[([^|\]]+)(?:\|[^\]]+)?\]\]/g)].map(m=>m[1])).join('|');}
+const translations=source=>{const s=source.includes('{{Ü-Tabelle')?source.slice(source.indexOf('{{Ü-Tabelle')).split(/\n\{\{Referenzen|\n\{\{Quellen/)[0]:source.includes('Wortart')?'':source;return unique([...s.matchAll(/\{\{Ü(?:t|xx4|\?)?\|en\|([^|{}]+)[^{}]*\}\}/g)].map(m=>clean(m[1]))).slice(0,8).join(' / ');};
+export function parseGermanEntry(source,word){
+ const german=languageSection(source,'de');if(!german)return [];const headings=[...german.matchAll(/^===(?!=)([^\n]+?)===\s*$/gm)].filter(h=>h[1].includes('Wortart'));const blocks=headings.length?headings.map((h,i)=>german.slice(h.index,headings[i+1]?.index??german.length)):[german],entries=[];
+ for(const block of blocks){
+  if(/\{\{Wortart\|(?:Deklinierte Form|Konjugierte Form|Partizip I|Partizip II)\|/.test(block))continue;
+  const properName=/\{\{Wortart\|(?:Nachname|Vorname|Toponym|Eigenname)\|Deutsch/.test(block);const english=translations(block),type=wordType(block),templates=[...block.matchAll(/\{\{Deutsch (Substantiv|Verb) Übersicht\s*\n([^]*?)\n\}\}/g)];
+  if(!templates.length&&/\{\{Wortart\|[^|]+\|Deutsch/.test(block))entries.push({properName,german:word,english,type,gender:'',plural:'',feminine:'',masculine:'',notes:'Source: https://de.wiktionary.org/wiki/'+encodeURIComponent(word)});
+  for(const match of templates){
+   const values=Object.fromEntries([...match[2].matchAll(/^\|\s*([^=\n]+?)\s*=\s*([^\n]*)/gm)].map(m=>[m[1].trim(),clean(m[2])]));
+   const all=prefix=>unique(Object.entries(values).filter(([k,v])=>(k===prefix||k.startsWith(prefix+' ')||k.startsWith(prefix+'*'))&&v&&!/^[-—–?]+$/.test(v)).map(([,v])=>v)).join('|');
+   const noun=match[1]==='Substantiv',gender=values.Genus||'',known=irregularExamples.find(v=>v.infinitive===word),singular=['ich','du','er, sie, es'].map(p=>values['Präsens_'+p]||'');
+   const imperative=values['Imperativ Plural']||'',particle=imperative.includes(' ')?imperative.split(' ').at(-1):'',pluralVerb=particle&&word.startsWith(particle)?word.slice(particle.length)+' '+particle:word;
+   const forms=(known?.forms||[...singular,pluralVerb,imperative,pluralVerb]).map(form=>/^[-—–]+$/.test(form)?'':form),stem=pluralVerb.split(' ')[0].replace(/(?:en|n)$/,'');
+   const regularPasts=['te','ete'].map(ending=>stem+ending+(particle?' '+particle:''));const sourcePasts=Object.entries(values).filter(([key])=>/^Präteritum_ich(?:\*+| \d+)?$/.test(key)).map(([,value])=>value).filter(Boolean);const irregular=known||/\{\{unreg\.[|}]/.test(block)?'yes':sourcePasts.length?(sourcePasts.every(p=>regularPasts.includes(p))?'no':'yes'):'unknown';
+   const pluralUsage=/\{\{K\|nur Plural\}\}/.test(block)&&/\{\{K\|[^}]*?(?:va\.|fachspr\.)/.test(block);const pluralOnly=pluralUsage||gender==='0'||(!all('Nominativ Singular')&&/\{\{Pl\.\}\}/.test(block));
+   entries.push({properName,german:word,english,type:noun?'noun':'verb',gender:noun&&!pluralOnly&&['m','f','n'].includes(gender)?gender:'',number:pluralOnly?'plural':'',plural:noun?all('Nominativ Plural'):'',feminine:noun?counterpart(block,'Weibliche Wortformen'):'',masculine:noun?counterpart(block,'Männliche Wortformen'):'',irregular:noun?'':irregular,forms:noun?[]:forms,notes:'Source: https://de.wiktionary.org/wiki/'+encodeURIComponent(word)+(/\{\{K\|nur Plural\}\}/.test(block)?'\nPlural-only senses use die '+word+'; singular senses have a different usage.':'')});
+  }
+ }
+ const common=entries.some(e=>!e.properName)?entries.filter(e=>!e.properName):entries;const seen=new Set();return common.filter(e=>{const key=JSON.stringify([e.german,e.type,e.gender,e.plural,e.english,e.forms]);if(seen.has(key))return false;seen.add(key);return true;});
+}
+export function parseEnglishMeanings(source,type){
+ const german=languageSection(source,'en'),typeName={noun:'Noun',verb:'Verb',adjective:'Adjective',adverb:'Adverb',pronoun:'Pronoun',number:'Numeral',preposition:'Preposition',conjunction:'Conjunction',expression:'Interjection'}[type];
+ const headings=[...german.matchAll(/^(={3,5})([^=\n]+)\1\s*$/gm)],blocks=headings.filter(h=>!typeName||h[2].trim()===typeName).map(h=>german.slice(h.index,headings.find(n=>n.index>h.index)?.index??german.length));
+ return unique(blocks.flatMap(block=>[...block.matchAll(/^# (.+)$/gm)].map(m=>clean(m[1])).filter(s=>s&&!/\{\{|\[\[/.test(s)))).slice(0,5).join(' / ');
+}
+export function germanDictionary(directory,{intervalMs=1100,pause=ms=>new Promise(resolve=>setTimeout(resolve,ms))}={}){
+ const file=path.join(directory,'german-dictionary-cache.json');let cache={},writes=Promise.resolve();const pending=new Map(),requests=new Map();let transport=Promise.resolve(),lastRequest=0;
  const ready=readFile(file,'utf8').then(s=>{cache=JSON.parse(s);}).catch(e=>{if(e.code!=='ENOENT')throw e;});
  const persist=()=>writes=writes.catch(()=>{}).then(async()=>{await writeFile(file+'.tmp',JSON.stringify(cache));await rename(file+'.tmp',file);});
- async function lookup(input){await ready;const word=input.trim().replace(/^(der|die|das)\s+/i,'');if(!word||word.length>100)throw Error('Enter a German word up to 100 characters.');if(Object.hasOwn(cache,word))return cache[word];if(pending.has(word))return pending.get(word);
-  const task=(async()=>{const url=new URL('https://de.wiktionary.org/w/api.php');url.search=new URLSearchParams({action:'query',prop:'revisions',rvprop:'content',rvslots:'main',titles:word,redirects:'1',format:'json',formatversion:'2'});const r=await fetch(url,{headers:{'User-Agent':'WortStudyCompanion/1.0 (personal German study)'},signal:AbortSignal.timeout(15000)});if(!r.ok)throw Error('Dictionary unavailable. Retry this word later.');const data=await r.json();if(data.error)throw Error('Dictionary could not process this word.');const page=data.query?.pages?.[0];const result={entries:parseGermanEntry(page?.revisions?.[0]?.slots?.main?.content||'',page?.title||word)};cache[word]=result;await persist();return result;})().finally(()=>pending.delete(word));pending.set(word,task);return task;
+ async function request(language,params){await ready;cache._sources??={};const key=language+':'+new URLSearchParams(params).toString();if(Object.hasOwn(cache._sources,key))return cache._sources[key];if(requests.has(key))return requests.get(key);
+  const task=transport.catch(()=>{}).then(async()=>{const url=new URL(`https://${language}.wiktionary.org/w/api.php`);url.search=new URLSearchParams({...params,format:'json',formatversion:'2'});let data;
+   for(let attempt=0;attempt<3;attempt++){const delay=Math.max(0,intervalMs-(Date.now()-lastRequest));if(delay)await pause(delay);lastRequest=Date.now();const r=await fetch(url,{headers:{'User-Agent':'WortStudyCompanion/2.0 (personal German study)'},signal:AbortSignal.timeout(15000)});if((r.status===429||r.status===503)&&attempt<2){const wait=Math.min(30,Math.max(2,Number(r.headers?.get('retry-after'))||2**(attempt+1)));await pause(wait*1000);continue;}if(!r.ok)throw Error(`Dictionary temporarily unavailable (${r.status}). Retry this word later.`);data=await r.json();break;}if(data?.error||!data?.query)throw Error('Dictionary could not process this word.');cache._sources[key]=data;await persist();return data;}).finally(()=>requests.delete(key));transport=task.catch(()=>{});requests.set(key,task);return task;
  }
- return {lookup,clear:async()=>{await ready;await Promise.allSettled([...pending.values()]);cache={};await persist();}};
+ async function pages(language,titles){await ready;cache._pages??={};titles=unique(titles);const missing=titles.filter(t=>!Object.hasOwn(cache._pages,language+':'+t));
+  for(let offset=0;offset<missing.length;offset+=40){const chunk=missing.slice(offset,offset+40),data=await request(language,{action:'query',prop:'revisions',rvprop:'content',rvslots:'main',titles:chunk.sort().join('|'),redirects:'1'}),returned=data.query.pages||[],aliases=new Map([...(data.query.normalized||[]),...(data.query.redirects||[])].map(x=>[x.from,x.to]));
+   for(const title of chunk){let target=title;const visited=new Set();while(aliases.has(target)&&!visited.has(target)){visited.add(target);target=aliases.get(target);}const page=returned.find(p=>p.title===target);cache._pages[language+':'+title]=page?.revisions?{title:page.title,source:page.revisions[0]?.slots?.main?.content||''}:null;}
+   for(const page of returned)if(page.revisions)cache._pages[language+':'+page.title]={title:page.title,source:page.revisions[0]?.slots?.main?.content||''};await persist();
+  }
+  const seen=new Set();return titles.map(t=>cache._pages[language+':'+t]).filter(p=>p&&!seen.has(p.title)&&seen.add(p.title));
+ }
+ async function prefetch(inputs){const plans=inputs.map(normalizeGermanInput),titles=unique(plans.flatMap(p=>{const word=p.optional?capital(lower(p.word))+'in':p.word;return [word,lower(word),capital(lower(word))];}));await pages('de',titles);}
+ async function entriesFor(titles,noun=false){const sourcePages=await pages('de',titles),result=[];for(const title of titles){const page=sourcePages.find(p=>p.title===title);if(!page)continue;const entries=parseGermanEntry(page.source,page.title).filter(e=>!noun||e.type==='noun');if(entries.length){result.push(...entries);break;}}if(!result.length)for(const page of sourcePages)result.push(...parseGermanEntry(page.source,page.title).filter(e=>!noun||e.type==='noun'));for(const e of result)if(!e.english){const english=await pages('en',[e.german]);e.english=parseEnglishMeanings(english[0]?.source||'',e.type);if(e.english)e.notes+='\nMeanings: https://en.wiktionary.org/wiki/'+encodeURIComponent(e.german);}return result;}
+ async function resolve(word,{review=false,reason='',article=''}={}){
+  const variants=unique(article?[capital(lower(word)),word,lower(word)]:[word,lower(word),capital(lower(word))]);let entries=await entriesFor(variants,Boolean(article));
+  if(!entries.length){const data=await request('de',{action:'query',list:'search',srsearch:word+'~',srnamespace:'0',srlimit:'12'});const titles=unique([data.query.searchinfo?.suggestion,...(data.query.search||[]).map(x=>x.title)]).filter(t=>editDistance(word,t)<=Math.min(2,Math.max(1,Math.floor(word.length/4)))).sort((a,b)=>editDistance(word,a)-editDistance(word,b));const sourcePages=titles.length?await pages('de',titles):[];for(const page of sourcePages){const found=parseGermanEntry(page.source,page.title);if(found.length)entries.push(...found.filter(e=>!e.properName&&(!article||e.type==='noun')));}entries.sort((a,b)=>editDistance(word,a.german)-editDistance(word,b.german));if(entries.length){const closest=editDistance(word,entries[0].german);entries=entries.filter(e=>editDistance(word,e.german)===closest);}entries=entries.slice(0,5);for(const e of entries)if(!e.english){const source=await pages('en',[e.german]);e.english=parseEnglishMeanings(source[0]?.source||'',e.type);}if(entries.length){review=true;reason=`Check the spelling: “${word}” → dictionary suggestions. No correction has been saved.`;}}
+  const genderForArticle={der:'m',die:'f',das:'n'}[article];if(genderForArticle&&entries.some(e=>(e.number==='plural'&&article!=='die')||(e.gender&&e.gender!==genderForArticle))){review=true;reason='The supplied article conflicts with the dictionary. Confirm the correct entry.';}return {input:word,entries,requiresReview:review||entries.length!==1||!entries[0]?.english,reason};
+ }
+ async function lookup(input){await ready;const plan=normalizeGermanInput(input),key=JSON.stringify(plan);if(pending.has(key))return pending.get(key);
+  const task=(async()=>{let groups=[];if(plan.optional){const female=await resolve(capital(lower(plan.word))+'in');const males=unique(female.entries.flatMap(e=>(e.masculine||'').split('|')));const male=await resolve(males.length===1?males[0]:capital(lower(plan.word)));const paired=male.entries.filter(e=>e.feminine?.split('|').includes(female.entries[0]?.german));if(paired.length){male.entries=paired;male.requiresReview=paired.length!==1||!paired[0].english;}groups=[male,female];if(males.length!==1&&!male.entries.some(e=>e.feminine?.split('|').includes(female.entries[0]?.german))){male.requiresReview=true;male.reason='Confirm the masculine counterpart for this shorthand.';}}else groups=[await resolve(plan.word,plan)];if(plan.alias)for(const g of groups)for(const e of g.entries)e.notes+='\nYour annotation / alias: '+plan.alias;return {original:plan.original,entries:groups.flatMap(g=>g.entries),groups};})().finally(()=>pending.delete(key));pending.set(key,task);return task;
+ }
+ return {lookup,prefetch,clear:async()=>{await ready;await Promise.allSettled([...pending.values(),...requests.values()]);cache={};await persist();}};
 }

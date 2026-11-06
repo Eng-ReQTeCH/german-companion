@@ -34,6 +34,10 @@ test('automatic imports persist metadata, skip duplicates and add irregular dril
  const entry={german:'Lehrer',english:'teacher',type:'noun',gender:'m',plural:'Lehrer',feminine:'Lehrerin'};assert.deepEqual(await post(entry),{added:true});assert.deepEqual(await post(entry),{skipped:true});
  await post({german:'gehen',english:'go',type:'verb',irregular:'yes',forms:['gehe','gehst','geht','gehen','geht','gehen']});
  const state=await(await fetch(base+'state')).json();assert.equal(state.words.find(w=>w.german==='der Lehrer').feminine,'Lehrerin');assert.equal(state.verbs.filter(v=>v.infinitive==='gehen').length,1);
+ await post({german:'sie',english:'she',type:'pronoun'});await post({german:'Sie',english:'you (polite)',type:'pronoun'});
+ await post({german:'Bank',english:'bank',type:'noun',gender:'f',plural:'Banken'});await post({german:'Bank',english:'bank',type:'noun',gender:'f',plural:'Bänke'});
+ await post({german:'Geschwister',english:'siblings',type:'noun',number:'plural',plural:'Geschwister'});
+ const after=await(await fetch(base+'state')).json();assert.equal(after.words.filter(w=>['sie','Sie'].includes(w.german)).length,2);assert.equal(after.words.filter(w=>w.german==='die Bank').length,2);assert.equal(after.words.find(w=>w.german==='die Geschwister').gender,'');
  const backup=await(await fetch(base+'backup')).json();assert.equal(backup.words.find(w=>w.german==='gehen').irregular,'yes');
  const review=await fetch(base+'review',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:state.words.find(w=>w.german==='gehen').id,rating:'good'})});assert.equal(review.status,200);
  }finally{if(child.exitCode===null){const exited=new Promise(resolve=>child.once('exit',resolve));child.kill();await exited;}await rm(directory,{recursive:true,force:true});}

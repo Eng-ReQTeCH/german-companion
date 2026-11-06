@@ -44,3 +44,15 @@ The importer stores article/gender, explicit plurals, feminine counterparts, Eng
 Overview and Anki studio have been removed from navigation. The activity calendar and streak now live in Practice. JSON backups and existing vocabulary remain available.
 
 Minigames starts with Number pairs: match digits with German words across 0–20, 0–100, or 0–1000. Pairs shuffle each round, wrong answers allow retries, and foreground play time contributes to study activity and the existing Episuite activity queue. The reference image can guide a future visual revision.
+
+### Resilient lookup of course vocabulary
+
+German paste import accepts lowercase nouns, articles, V/V. course prefixes, optional feminine shorthand such as Enkel(in) and Kolleg(in), and aliases such as Kugelschreiber (Kuli). Counterparts are linked using dictionary data rather than suffix guessing. Explicit noun articles guide matching; conflicts with the source are reviewed. Exact case is preserved for lexical distinctions such as sie/Sie.
+
+Close dictionary spelling suggestions are ranked and require confirmation. For example Brilee can suggest Brille, and Schlussek can suggest Schlüssel. The original text remains visible. Edit the German field and choose Retry lookup to search the corrected spelling. Review drafts, focus and pending queue items survive background progress/navigation; drafts and queue state are saved across browser reloads.
+
+The server batches source pages, paces additional requests and respects numeric Retry-After delays up to 30 seconds before bounded retries. A second Wiktionary language edition fills missing English meanings. Successful raw page/search responses are retained indefinitely in the existing German dictionary cache, allowing parser improvements to reuse responses without new external requests. Legacy parsed cache entries are retained but no longer block the improved parser with stale misses; a source response may be fetched once on first use after upgrading. No automatic expiration or clearing is introduced. Transport/rate-limit errors are never stored as missing words.
+
+Meaning extraction is scoped to German and the relevant part of speech. Proper-name homographs are deprioritized when an ordinary word is available. Distinct case, gender, grammatical number, plural and meaning are considered when saving. Reimporting an existing matching card fills missing metadata while preserving its review history and user content. Plural usage is stored explicitly (die, without inventing feminine gender). Unknown details remain unknown rather than fabricated.
+
+The regression suite includes the complete 30-row course-list example, source-backed typo review, feminine expansion, source-language boundaries, regular/mixed verb classification, cache upgrades, request backoff, and homograph persistence. See tests/fixtures/README.md for recorded source-fixture provenance.
